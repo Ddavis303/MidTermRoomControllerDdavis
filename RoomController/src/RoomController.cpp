@@ -18,6 +18,7 @@
 #include "Keypad_Particle.h"
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+int lights[] = {1,2,3,4,5,6};
 const int BMEADDRESS = 0x76;
 const int BUTTONPIN = D2;
 const int LIGHT = 3;
@@ -44,7 +45,7 @@ int count5;
 int count6;
 int startHour = 7, endHour = 18, startMin = 0, endMin = 0;
 int brightness;
-bool lightPower;
+bool lightPower, lightNoPower;
  
 
 char hexaKeys [ ROWS ][ COLS ] = {
@@ -98,7 +99,6 @@ void setup() {
   WiFi.on();
   WiFi.clearCredentials();
   WiFi.setCredentials("IoTNetwork");
-
   WiFi.connect();
   while(WiFi.connecting()){
     Serial.printf(".");
@@ -153,9 +153,9 @@ void loop() {
   }
 
   if(!buttonClick){
-    startHour = 14;
+    startHour = 8;
     startMin = 00;
-    endHour = 15;
+    endHour = 9;
     endMin = 00; 
     manual = false;
     if(now.minute() >= startMin){
@@ -290,15 +290,17 @@ void goAuto(){
 
 void lightOn(){
   if(!lightPower){
-    Serial.printf("Turning Light ON");
+    //Serial.printf("Turning Light ON");
     //currentTime = millis();
     if((millis() - lastLightOnSecond)> 1000)
     { 
       lastLightOnSecond = millis();
       Serial.printf("Light ON\n");
-      setHue(LIGHT, true, HueOrange, brightness, 255);
-      brightness++;
-      if(brightness >= 256){
+      for(int i = 0; i < 6; i++){
+        setHue(lights[i], true, HueOrange, brightness, 255);
+      }
+        brightness++;
+      if(brightness >= 255){
         brightness = 0;
         lightPower = true;
       }
@@ -307,14 +309,23 @@ void lightOn(){
 }
 
 void lightOff(){
-  brightness = 256;
-  if(brightness > 0){
+  if(!lightNoPower){
+    
+    Serial.printf("Turning light off\n");
+    
     //currentTime = millis();
-    if((millis() - lastLightOffSecond)> 1000)
-    { 
+    if((millis() - lastLightOffSecond)> 1000){
+       
       lastLightOffSecond = millis();
-      setHue(LIGHT, true, HueOrange, brightness, 255);
-      brightness--;
+      Serial.printf("Dimming\n");
+      for(int i = 0; i < 6; i++){
+        setHue(lights[i], true, HueViolet, brightness, 255);
+      }
+        brightness--;
+      if(brightness <= 0){
+        brightness = 255;
+        lightNoPower = true;
+      }
     }
   }
 }
@@ -361,45 +372,72 @@ void dayMode(){
   if(count3 < 1){
     lightPower = false;
     if(tempF < 70){
-        wemoWrite(HEATER, HIGH);
-        wemoWrite(FAN, LOW);
-      }
-      else{
-        wemoWrite(HEATER, LOW);
-        wemoWrite(FAN, HIGH);
-      }
-      Serial.printf("Heater ON\nFan OFF\n");
+      wemoWrite(HEATER, HIGH);
       wemoWrite(FAN, LOW);
-      brightTime.startTimer(1000);
-      count3++;
-      lightOn();
-      }
+    }
+    else{
+      wemoWrite(HEATER, LOW);
+      wemoWrite(FAN, HIGH);
+    }
+    Serial.printf("Heater ON\nFan OFF\n");  
+    count3++;
+    }
   
-
+  if(!lightPower){
+    lightOn();
+  }
+  if((millis() - lastMinute) > 50000){
+    lastMinute = millis();
+    if(tempF < 70){
+      wemoWrite(HEATER, HIGH);
+      wemoWrite(FAN, LOW);
+    }
+    else{
+      wemoWrite(HEATER, LOW);
+      wemoWrite(FAN, HIGH);
+    }
+  }
  }
   
 
 
 void nightMode(){
   //currentTime = millis();
-    if (( millis() - lastNightSecond ) > 1000) {
-      lastNightSecond = millis();
-      Serial.printf("NIGHT MODE\n");
-      showInfo();
-    }
+  if (( millis() - lastNightSecond ) > 1000) {
+    lastNightSecond = millis();
+    Serial.printf("NIGHT MODE\n");
+    showInfo();
+  }
+    
   if(count4 < 1){
+    lightNoPower = false;
     wemoWrite(HEATER, LOW);
     if(tempF > 65){
       wemoWrite(FAN, HIGH);
+      wemoWrite(HEATER, LOW);
     }
     else{
       wemoWrite(FAN, LOW);
+      wemoWrite(HEATER, HIGH);
     }
     Serial.printf("Heater OFF\nFan ON\n");
-    lightOff();
     count4++;
   }
-  
+  if(!lightPower){
+    brightness = 255;
+    lightOff();
+  }
+  if((millis() - lastMinute) > 50000){
+    lastMinute = millis();
+    if(tempF > 65){
+      wemoWrite(FAN, HIGH);
+      wemoWrite(HEATER, LOW);
+    }
+    else{
+      wemoWrite(FAN, LOW);
+      wemoWrite(HEATER, HIGH);
+    }
+  }
   
  }
 
